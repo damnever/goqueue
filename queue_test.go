@@ -58,7 +58,7 @@ func TestBlockGetWithTimeout(t *testing.T) {
 		queue.PutNoWait(value)
 	}
 
-	fmt.Println("Test block get without timeout, wait utill an element available...")
+	fmt.Println("Test block get without timeout, wait until an element available...")
 	wg.Add(1)
 	go put(time.Duration(3), 9999)
 	go get(0, 9999, true)
@@ -125,7 +125,7 @@ func TestBlockPutWithTimeout(t *testing.T) {
 		}
 	}
 
-	fmt.Println("Test block put without timeout, wait utill a free slot available...")
+	fmt.Println("Test block put without timeout, wait until a free slot available...")
 	go get(time.Duration(2))
 	wg.Add(1)
 	go put(0, 9999, true)

@@ -92,7 +92,7 @@ Queue Methods:
    (2) If `block` is `true` and `timeout` is zero, wait until free slot available.
    (3) If `block` is `true` and `timeout` greater than zero, put `value` into Queue and return immediately if a slot available before timeout, return `EmptyQueueError` if no free slot is available within `timeout`.
 
- - `(queue *Queue) PutNoWait(value interface) (*list.Element, error)`
+ - `(queue *Queue) PutNoWait(value interface{}) (*list.Element, error)`
 
    Same as `Put` with `block=false`.
 

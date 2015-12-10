@@ -8,6 +8,12 @@ It is very very very similar to the Queue of Python, as a practice...
  - I am a newbie, I know nothing about goroutine lifecycle...
  - Maybe a lots of BUGs in the code...
 
+### Installation
+
+```
+go get github.com/Damnever/goqueue
+```
+
 ### Example
 
 Just for example, I use `Queue.Get(true, 0)` and `Queue.PutNoWait(value)` more and often, but channel can not do that...
@@ -15,7 +21,7 @@ Just for example, I use `Queue.Get(true, 0)` and `Queue.PutNoWait(value)` more a
 ```Go
 package main
 
-import "goqueue"
+import "github.com/Damnever/goqueue"
 import "fmt"
 
 func main() {

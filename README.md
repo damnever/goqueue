@@ -1,4 +1,4 @@
-## A thread safe queue for Golang
+## A thread safe queue for Golang ![Build Status](https://travis-ci.org/Damnever/goqueue.svg?branch=master)
 
 Golang channel can not support infinite size, I use it as a replacement.
 

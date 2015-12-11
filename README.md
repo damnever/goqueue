@@ -4,8 +4,7 @@ Golang channel can not support infinite size, I use it as a replacement.
 
 It is very very very similar to the Queue of Python, as a practice...
 
-**NOTE**:
- - I am a newbie, maybe a lots of BUGs in the code...
+**NOTE**: Maybe a lots of BUGs in the code...
 
 ### Installation
 

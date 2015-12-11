@@ -85,21 +85,24 @@ func (queue *Queue) Get(block bool, timeout float64) (*list.Element, error) {
 		return &list.Element{}, errors.New("'timeout' must be a non-negative number")
 	} else {
 		timer := time.After(time.Duration(timeout) * time.Second)
-		notEmpty := make(chan bool)
+		notEmpty := make(chan bool, 1)
 		go queue.waitSignal(queue.getCond, notEmpty)
+	TIMEOUT:
 		for queue.qsize() == 0 {
 			select {
 			case <-timer:
 				emptyQ = true
-				break
+				queue.cancelWait(queue.getCond, notEmpty)
+				break TIMEOUT
 			case <-notEmpty:
 				if queue.qsize() == 0 {
 					go queue.waitSignal(queue.getCond, notEmpty)
 				} else {
-					break
+					break TIMEOUT
 				}
 			}
 		}
+		close(notEmpty)
 	}
 	if emptyQ {
 		return &list.Element{}, &EmptyQueueError{}
@@ -131,21 +134,24 @@ func (queue *Queue) Put(element interface{}, block bool, timeout float64) (*list
 			return &list.Element{}, errors.New("'timeout' must be a non-negative number")
 		} else {
 			timer := time.After(time.Duration(timeout) * time.Second)
-			notFull := make(chan bool)
+			notFull := make(chan bool, 1)
 			go queue.waitSignal(queue.putCond, notFull)
+		TIMEOUT:
 			for queue.qsize() == queue.maxSize {
 				select {
 				case <-timer:
 					fullQ = true
-					break
+					queue.cancelWait(queue.putCond, notFull)
+					break TIMEOUT
 				case <-notFull:
 					if queue.qsize() == queue.maxSize {
 						go queue.waitSignal(queue.putCond, notFull)
 					} else {
-						break
+						break TIMEOUT
 					}
 				}
 			}
+			close(notFull)
 		}
 	}
 	if fullQ {
@@ -181,6 +187,11 @@ func (queue *Queue) WaitAllComplete() {
 func (queue *Queue) waitSignal(cond *sync.Cond, c chan<- bool) {
 	cond.Wait()
 	c <- true
+}
+
+func (queue *Queue) cancelWait(cond *sync.Cond, c <-chan bool) {
+	cond.Signal()
+	<-c
 }
 
 func (queue *Queue) qsize() int {

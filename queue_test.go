@@ -191,6 +191,7 @@ func TestConcurrentPutGet(t *testing.T) {
 
 	fmt.Println("Test concurrent Get/Put...")
 	go func() {
+		defer wg.Done()
 		dones := [10]chan bool{}
 		for i := 0; i < 10; i++ {
 			dones[i] = make(chan bool, 1)
@@ -221,24 +222,16 @@ func TestConcurrentPutGet(t *testing.T) {
 		for i := 0; i < 9; i++ {
 			<-dones[i]
 		}
+		for i := 0; i < 50; i++ {
+			queue.Get(0)
+		}
 	}()
 
-	wg.Add(1)
+	wg.Add(2)
 	wg.Wait()
 
 	if queue.Size() != 50 {
-		t.Fatalf("Queue size wrong, expect %d, got %d.\n", 50, queue.Size())
-	}
-	if queue.putters.Len() == 0 {
-		t.Fatalf("Except non-zero pending Put operators, got %d.\n", queue.putters.Len())
-	}
-
-	t.Log("dd")
-	for i := 0; i < 70; i++ {
-		queue.Get(0)
-	}
-	if queue.Size() != 30 {
-		t.Fatalf("Expect Queue size is %d, got %d.\n", 30, queue.Size())
+		t.Fatalf("Except Queue size %d, got %d.\n", 50, queue.Size())
 	}
 	if queue.putters.Len() != 0 {
 		t.Fatalf("Not right, still has %d Put operators is pending.\n", queue.putters.Len())
@@ -248,6 +241,13 @@ func TestConcurrentPutGet(t *testing.T) {
 	}
 
 	for i := 0; i < 30; i++ {
+		queue.Get(0)
+	}
+	if queue.Size() != 20 {
+		t.Fatalf("Expect Queue size is %d, got %d.\n", 30, queue.Size())
+	}
+
+	for i := 0; i < 20; i++ {
 		queue.GetNoWait()
 	}
 	if queue.Size() != 0 {

@@ -1,6 +1,7 @@
 /*
-  A thread safe queue for Golang.
+A GoRoutine safe queue.
 */
+
 package goqueue
 
 import (
@@ -60,7 +61,7 @@ func (q *Queue) newGetter() *list.Element {
 	return q.getters.PushBack(w)
 }
 
-func (q *Queue) notifyPutters(getter *list.Element) bool {
+func (q *Queue) notifyPutter(getter *list.Element) bool {
 	if getter != nil {
 		q.getters.Remove(getter)
 	}
@@ -74,7 +75,7 @@ func (q *Queue) notifyPutters(getter *list.Element) bool {
 	return true
 }
 
-func (q *Queue) notifyGetters(putter *list.Element, val interface{}) bool {
+func (q *Queue) notifyGetter(putter *list.Element, val interface{}) bool {
 	if putter != nil {
 		q.putters.Remove(putter)
 	}
@@ -86,6 +87,16 @@ func (q *Queue) notifyGetters(putter *list.Element, val interface{}) bool {
 	w := e.Value.(waiter)
 	w <- val
 	return true
+}
+
+func (q *Queue) clearPending() {
+	for !q.isfull() && q.putters.Len() != 0 {
+		q.notifyPutter(nil)
+	}
+	for !q.isempty() && q.getters.Len() != 0 {
+		v := q.get()
+		q.notifyGetter(nil, v)
+	}
 }
 
 func (q *Queue) get() interface{} {
@@ -109,6 +120,7 @@ func (q *Queue) GetNoWait() (interface{}, error) {
 // if timeout passed, return (nil, EmptyQueueError).
 func (q *Queue) Get(timeout float64) (interface{}, error) {
 	q.mutex.Lock()
+	q.clearPending()
 	isempty := q.isempty()
 	if timeout < 0.0 && isempty {
 		return nil, &EmptyQueueError{}
@@ -117,7 +129,7 @@ func (q *Queue) Get(timeout float64) (interface{}, error) {
 	if !isempty {
 		defer q.mutex.Unlock()
 		v := q.get()
-		q.notifyPutters(nil)
+		q.notifyPutter(nil)
 		return v, nil
 	}
 
@@ -136,7 +148,7 @@ func (q *Queue) Get(timeout float64) (interface{}, error) {
 		}
 	}
 	q.mutex.Lock()
-	q.notifyPutters(e)
+	q.notifyPutter(e)
 	q.mutex.Unlock()
 	return v, nil
 }
@@ -152,6 +164,7 @@ func (q *Queue) PutNoWait(val interface{}) error {
 // if timeout passed, return (nil, FullQueueError).
 func (q *Queue) Put(val interface{}, timeout float64) error {
 	q.mutex.Lock()
+	q.clearPending()
 	isfull := q.isfull()
 	if timeout < 0.0 && isfull {
 		return &FullQueueError{}
@@ -159,7 +172,7 @@ func (q *Queue) Put(val interface{}, timeout float64) error {
 
 	if !isfull {
 		defer q.mutex.Unlock()
-		if !q.notifyGetters(nil, val) {
+		if !q.notifyGetter(nil, val) {
 			q.put(val)
 		}
 		return nil
@@ -179,7 +192,7 @@ func (q *Queue) Put(val interface{}, timeout float64) error {
 	}
 
 	q.mutex.Lock()
-	if !q.notifyGetters(e, val) {
+	if !q.notifyGetter(e, val) {
 		q.put(e)
 	}
 	q.mutex.Unlock()

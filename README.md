@@ -1,5 +1,4 @@
-## A thread safe queue for Golang [![Build Status](https://travis-ci.org/Damnever/goqueue.svg?branch=master)](https://travis-ci.org/Damnever/goqueue) [![GoDoc](https://godoc.org/github.com/Damnever/goqueue?status.svg)(https://godoc.org/github.com/Damnever/goqueue)]
-
+## A thread safe queue for Golang [![Build Status](https://travis-ci.org/Damnever/goqueue.svg?branch=master)](https://travis-ci.org/Damnever/goqueue) [![GoDoc](https://godoc.org/github.com/Damnever/goqueue?status.svg)](https://godoc.org/github.com/Damnever/goqueue)
 Golang channel can not support infinite size, I use it as a replacement.
 
 It is similar to the Queue of Python, as a practice...
@@ -47,12 +46,12 @@ func main() {
 		}
 	}
 
-	for i := 0; i <= 27; i += 3 {
-		queue.PutNoWait(i)
+    for i := 0; i < 5; i++ {
+		go worker(queue)
 	}
 
-	for i := 0; i < 5; i++ {
-		go worker(queue)
+    for i := 0; i <= 27; i += 3 {
+		queue.PutNoWait(i)
 	}
 
 	wg.Add(5)

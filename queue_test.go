@@ -12,18 +12,18 @@ func TestUnBlockGetPut(t *testing.T) {
 	value := 8888
 
 	fmt.Println("Test unblock get/put, should no error...")
-	queue := NewQueue(1)
+	queue := New(1)
 	queue.PutNoWait(value)
-	e, err := queue.GetNoWait()
+	val, err := queue.GetNoWait()
 	if err != nil {
 		t.Fatalf("Unexpect error: %v\n", err)
-	} else if e.Value.(int) != value {
-		t.Fatalf("Expect %v, got %v\n", value, e.Value.(int))
+	} else if val.(int) != value {
+		t.Fatalf("Expect %v, got %v\n", value, val.(int))
 	}
 	fmt.Println("  ...PASSED")
 
 	fmt.Println("Test unblock get/put, error should show up...")
-	emptyQ := NewQueue(1)
+	emptyQ := New(1)
 	_, err1 := emptyQ.GetNoWait()
 	if err1 == nil {
 		t.Fatalf("No error show up\n")
@@ -31,16 +31,38 @@ func TestUnBlockGetPut(t *testing.T) {
 	fmt.Println("  ...PASSED")
 }
 
+func TestFIFO(t *testing.T) {
+	size := 3
+	queue := New(size)
+
+	fmt.Println("Test FIFO...")
+	for i := 0; i < size; i++ {
+		queue.PutNoWait(i)
+	}
+	for i := 0; i < size; i++ {
+		val, err := queue.GetNoWait()
+		if err != nil {
+			t.Fatalf("Unexpect error: %v\n", err)
+		} else if val.(int) != i {
+			t.Fatalf("Queue is not FIFO")
+		}
+	}
+	if queue.Size() != 0 {
+		t.Fatalf("Something wrong, Queue has %d more items.\n", queue.Size())
+	}
+	fmt.Println("  ...PASSED")
+}
+
 func TestBlockGetWithTimeout(t *testing.T) {
 	wg := &sync.WaitGroup{}
-	queue := NewQueue(1)
+	queue := New(1)
 
 	get := func(timeout float64, value int, noErr bool) {
 		defer wg.Done()
-		e, err := queue.Get(true, timeout)
+		val, err := queue.Get(timeout)
 		if noErr {
-			if err == nil && e.Value.(int) != value {
-				t.Fatalf("Expect %v, got %v\n", value, e.Value.(int))
+			if err == nil && val.(int) != value {
+				t.Fatalf("Expect %v, got %v\n", value, val.(int))
 			} else if err != nil {
 				t.Fatalf("Unexpect error: %v\n", err)
 			}
@@ -67,9 +89,9 @@ func TestBlockGetWithTimeout(t *testing.T) {
 
 	fmt.Println("Test block get without timeout, wait forever...")
 	done := make(chan bool)
-	queue2 := NewQueue(1)
+	queue2 := New(1)
 	go func() {
-		queue2.Get(true, 0)
+		queue2.Get(0)
 		done <- true
 	}()
 	select {
@@ -98,22 +120,21 @@ func TestBlockGetWithTimeout(t *testing.T) {
 }
 
 func TestBlockPutWithTimeout(t *testing.T) {
-	queue := NewQueue(1)
+	queue := New(1)
 	queue.PutNoWait(1111)
 	wg := &sync.WaitGroup{}
 
 	get := func(d time.Duration) {
+		defer wg.Done()
 		time.Sleep(time.Second * d)
 		queue.GetNoWait()
 	}
 
 	put := func(timeout float64, value int, noErr bool) {
 		defer wg.Done()
-		e, err := queue.Put(value, true, timeout)
+		err := queue.Put(value, timeout)
 		if noErr {
-			if err == nil && e.Value.(int) != value {
-				t.Fatalf("Expect %v, got %v\n", value, e.Value.(int))
-			} else if err != nil {
+			if err != nil {
 				t.Fatalf("Unexpect error: %v\n", err)
 			}
 		} else {
@@ -127,17 +148,17 @@ func TestBlockPutWithTimeout(t *testing.T) {
 
 	fmt.Println("Test block put without timeout, wait until a free slot available...")
 	go get(time.Duration(2))
-	wg.Add(1)
 	go put(0, 9999, true)
+	wg.Add(2)
 	wg.Wait()
 	fmt.Println("  ...PASSED")
 
 	fmt.Println("Test block put without timeout, wait forever...")
-	queue2 := NewQueue(1)
+	queue2 := New(1)
 	queue2.PutNoWait(1111)
 	done := make(chan bool)
 	go func() {
-		queue2.Put(0, true, 2222)
+		queue2.Put(0, 2222)
 		done <- true
 	}()
 	select {
@@ -151,62 +172,86 @@ func TestBlockPutWithTimeout(t *testing.T) {
 
 	fmt.Println("Test block put with timeout, if a free slot is available before timeout, return immediately...")
 	go get(time.Duration(2))
-	wg.Add(1)
 	go put(3, 8888, true)
+	wg.Add(2)
 	wg.Wait()
 	fmt.Println("  ...PASSED")
 
 	fmt.Println("Test block put with timeout, if no free slot is available within timeout, return FullQueueError...")
 	go get(time.Duration(4))
-	wg.Add(1)
 	go put(2, 7777, false)
+	wg.Add(2)
 	wg.Wait()
 	fmt.Println("  ...PASSED")
 }
 
-func TestTaskDoneAndFIFO(t *testing.T) {
-	size := 3
-	queue := NewQueue(size)
+func TestConcurrentPutGet(t *testing.T) {
+	queue := New(50)
+	wg := &sync.WaitGroup{}
 
-	fmt.Println("Test Queue.TaskDone method and FIFO...")
-	for i := 0; i < size; i++ {
-		queue.PutNoWait(i)
-	}
-	for i := 0; i < size; i++ {
-		e, err := queue.GetNoWait()
-		if err != nil {
-			t.Fatalf("Unexpect error: %v\n", err)
-		} else if e.Value.(int) != i {
-			t.Fatalf("Queue is not FIFO")
-		}
-		queue.TaskDone()
-	}
-	if queue.Size() != 0 {
-		t.Fatalf("Something wrong, %v task(s) not done\n", queue.Size())
-	}
-	fmt.Println("  ...PASSED")
-}
-
-func TestWaitAllComplete(t *testing.T) {
-	size := 20
-	queue := NewQueue(size)
-
-	fmt.Println("Test Queue.WaitAllComplete method...")
+	fmt.Println("Test concurrent Get/Put...")
 	go func() {
-		for !queue.IsEmpty() {
-			_, err := queue.Get(true, 0)
-			if err != nil {
-				t.Fatalf("Unexpect Error: %v\n", err)
-			}
-			queue.TaskDone()
+		dones := [10]chan bool{}
+		for i := 0; i < 10; i++ {
+			dones[i] = make(chan bool, 1)
+			go func(i int) {
+				for j := 1; j <= 100; j++ {
+					queue.Put(i*j, 0)
+				}
+				dones[i] <- true
+			}(i)
+		}
+		for i := 0; i < 10; i++ {
+			<-dones[i]
 		}
 	}()
-	for i := 0; i < size; i++ {
-		queue.PutNoWait(i)
+
+	go func() {
+		defer wg.Done()
+		dones := [9]chan bool{}
+		for i := 0; i < 9; i++ {
+			dones[i] = make(chan bool, 1)
+			go func(i int) {
+				for j := 1; j <= 100; j++ {
+					queue.Get(0)
+				}
+				dones[i] <- true
+			}(i)
+		}
+		for i := 0; i < 9; i++ {
+			<-dones[i]
+		}
+	}()
+
+	wg.Add(1)
+	wg.Wait()
+
+	if queue.Size() != 50 {
+		t.Fatalf("Queue size wrong, expect %d, got %d.\n", 50, queue.Size())
 	}
-	queue.WaitAllComplete()
+	if queue.putters.Len() == 0 {
+		t.Fatalf("Except non-zero pending Put operators, got %d.\n", queue.putters.Len())
+	}
+
+	t.Log("dd")
+	for i := 0; i < 70; i++ {
+		queue.Get(0)
+	}
+	if queue.Size() != 30 {
+		t.Fatalf("Expect Queue size is %d, got %d.\n", 30, queue.Size())
+	}
+	if queue.putters.Len() != 0 {
+		t.Fatalf("Not right, still has %d Put operators is pending.\n", queue.putters.Len())
+	}
+	if queue.getters.Len() != 0 {
+		t.Fatalf("Not right, still has %d Get operators is pending.\n", queue.getters.Len())
+	}
+
+	for i := 0; i < 30; i++ {
+		queue.GetNoWait()
+	}
 	if queue.Size() != 0 {
-		t.Fatalf("Somthing wrong, %v task(s) not done\n", queue.Size())
+		t.Fatalf("Queue is not empty, still has %d items.\n", queue.Size())
 	}
 	fmt.Println("  ...PASSED")
 }

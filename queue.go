@@ -5,7 +5,6 @@ package goqueue
 
 import (
 	"container/list"
-	"errors"
 	"sync"
 	"time"
 )
@@ -14,186 +13,208 @@ type EmptyQueueError struct{}
 
 type FullQueueError struct{}
 
+// Queue is Empty.
 func (err *EmptyQueueError) Error() string {
 	return "Queue is Empty"
 }
 
+// Queue is Full.
 func (err *FullQueueError) Error() string {
 	return "Queue is Full"
 }
 
+type waiter chan interface{}
+
+func newWaiter() waiter {
+	w := make(chan interface{}, 1)
+	return w
+}
+
 type Queue struct {
-	mutex          sync.Mutex
-	getCond        *sync.Cond
-	putCond        *sync.Cond
-	taskDoneCond   *sync.Cond
-	list           *list.List
-	maxSize        int
-	unfinishedTask int
+	maxSize int
+	mutex   sync.Mutex
+	items   *list.List // store items
+	putters *list.List // store blocked Put operator
+	getters *list.List // store blocked Get operator
 }
 
-func NewQueue(maxSize int) *Queue {
-	queue := new(Queue)
-	queue.mutex = sync.Mutex{}
-	queue.getCond = sync.NewCond(&queue.mutex)
-	queue.putCond = sync.NewCond(&queue.mutex)
-	queue.taskDoneCond = sync.NewCond(&queue.mutex)
-	queue.list = list.New()
-	queue.maxSize = maxSize
-	queue.unfinishedTask = 0
-	return queue
+// New create a new Queue, The maxSize variable sets the max Queue size.
+// If maxSize is zero, Queue will be infinite size, and Put always no wait.
+func New(maxSize int) *Queue {
+	q := new(Queue)
+	q.mutex = sync.Mutex{}
+	q.maxSize = maxSize
+	q.items = list.New()
+	q.putters = list.New()
+	q.getters = list.New()
+	return q
 }
 
-func (queue *Queue) Size() int {
-	queue.mutex.Lock()
-	size := queue.qsize()
-	queue.mutex.Unlock()
-	return size
+func (q *Queue) newPutter() *list.Element {
+	w := newWaiter()
+	return q.putters.PushBack(w)
 }
 
-func (queue *Queue) IsEmpty() bool {
-	queue.mutex.Lock()
-	isEmpty := (queue.qsize() == 0)
-	queue.mutex.Unlock()
-	return isEmpty
+func (q *Queue) newGetter() *list.Element {
+	w := newWaiter()
+	return q.getters.PushBack(w)
 }
 
-func (queue *Queue) IsFull() bool {
-	queue.mutex.Lock()
-	isFull := (queue.maxSize > 0 && queue.qsize() == queue.maxSize)
-	queue.mutex.Unlock()
-	return isFull
+func (q *Queue) notifyPutters(getter *list.Element) bool {
+	if getter != nil {
+		q.getters.Remove(getter)
+	}
+	if q.putters.Len() == 0 {
+		return false
+	}
+	e := q.putters.Front()
+	q.putters.Remove(e)
+	w := e.Value.(waiter)
+	w <- true
+	return true
 }
 
-func (queue *Queue) GetNoWait() (*list.Element, error) {
-	return queue.Get(false, 0)
+func (q *Queue) notifyGetters(putter *list.Element, val interface{}) bool {
+	if putter != nil {
+		q.putters.Remove(putter)
+	}
+	if q.getters.Len() == 0 {
+		return false
+	}
+	e := q.getters.Front()
+	q.getters.Remove(e)
+	w := e.Value.(waiter)
+	w <- val
+	return true
 }
 
-func (queue *Queue) Get(block bool, timeout float64) (*list.Element, error) {
-	queue.getCond.L.Lock()
-	defer queue.getCond.L.Unlock()
-	emptyQ := false
-	if !block {
-		if queue.qsize() == 0 {
-			emptyQ = true
-		}
-	} else if timeout == float64(0) {
-		for queue.qsize() == 0 {
-			queue.getCond.Wait()
-		}
-	} else if timeout < float64(0) {
-		return &list.Element{}, errors.New("'timeout' must be a non-negative number")
+func (q *Queue) get() interface{} {
+	e := q.items.Front()
+	q.items.Remove(e)
+	return e.Value
+}
+
+func (q *Queue) put(val interface{}) {
+	q.items.PushBack(val)
+}
+
+// Same as Get(-1).
+func (q *Queue) GetNoWait() (interface{}, error) {
+	return q.Get(-1)
+}
+
+// * If timeout less than 0, If Queue is empty, return (nil, EmptyQueueError).
+// * If timeout equals to 0, block until get a value from Queue.
+// * If timeout greater tahn 0, wait timeout seconds until get a value from Queue,
+// if timeout passed, return (nil, EmptyQueueError).
+func (q *Queue) Get(timeout float64) (interface{}, error) {
+	q.mutex.Lock()
+	isempty := q.isempty()
+	if timeout < 0.0 && isempty {
+		return nil, &EmptyQueueError{}
+	}
+
+	if !isempty {
+		defer q.mutex.Unlock()
+		v := q.get()
+		q.notifyPutters(nil)
+		return v, nil
+	}
+
+	e := q.newGetter()
+	q.mutex.Unlock()
+	w := e.Value.(waiter)
+
+	var v interface{}
+	if timeout == 0.0 {
+		v = <-w
 	} else {
-		timer := time.After(time.Duration(timeout) * time.Second)
-		notEmpty := make(chan bool, 1)
-		go queue.waitSignal(queue.getCond, notEmpty)
-	TIMEOUT:
-		for queue.qsize() == 0 {
-			select {
-			case <-timer:
-				emptyQ = true
-				queue.cancelWait(queue.getCond, notEmpty)
-				break TIMEOUT
-			case <-notEmpty:
-				if queue.qsize() == 0 {
-					go queue.waitSignal(queue.getCond, notEmpty)
-				} else {
-					break TIMEOUT
-				}
-			}
-		}
-		close(notEmpty)
-	}
-	if emptyQ {
-		return &list.Element{}, &EmptyQueueError{}
-	}
-	e := queue.list.Front()
-	queue.list.Remove(e)
-	queue.putCond.Signal()
-	return e, nil
-}
-
-func (queue *Queue) PutNoWait(element interface{}) (*list.Element, error) {
-	return queue.Put(element, false, 0)
-}
-
-func (queue *Queue) Put(element interface{}, block bool, timeout float64) (*list.Element, error) {
-	queue.putCond.L.Lock()
-	defer queue.putCond.L.Unlock()
-	fullQ := false
-	if queue.maxSize > 0 {
-		if !block {
-			if queue.qsize() == queue.maxSize {
-				fullQ = true
-			}
-		} else if timeout == float64(0) {
-			for queue.qsize() == queue.maxSize {
-				queue.putCond.Wait()
-			}
-		} else if timeout < float64(0) {
-			return &list.Element{}, errors.New("'timeout' must be a non-negative number")
-		} else {
-			timer := time.After(time.Duration(timeout) * time.Second)
-			notFull := make(chan bool, 1)
-			go queue.waitSignal(queue.putCond, notFull)
-		TIMEOUT:
-			for queue.qsize() == queue.maxSize {
-				select {
-				case <-timer:
-					fullQ = true
-					queue.cancelWait(queue.putCond, notFull)
-					break TIMEOUT
-				case <-notFull:
-					if queue.qsize() == queue.maxSize {
-						go queue.waitSignal(queue.putCond, notFull)
-					} else {
-						break TIMEOUT
-					}
-				}
-			}
-			close(notFull)
+		select {
+		case v = <-w:
+		case <-time.After(time.Duration(timeout) * time.Second):
+			return nil, &EmptyQueueError{}
 		}
 	}
-	if fullQ {
-		return &list.Element{}, &FullQueueError{}
-	}
-	e := queue.list.PushBack(element)
-	queue.unfinishedTask += 1
-	queue.getCond.Signal()
-	return e, nil
+	q.mutex.Lock()
+	q.notifyPutters(e)
+	q.mutex.Unlock()
+	return v, nil
 }
 
-func (queue *Queue) TaskDone() {
-	queue.taskDoneCond.L.Lock()
-	defer queue.taskDoneCond.L.Unlock()
-	unfinished := queue.unfinishedTask - 1
-	if unfinished <= 0 {
-		if unfinished < 0 {
-			panic(errors.New("TaskDone() called too many times"))
+// Same as Put(-1).
+func (q *Queue) PutNoWait(val interface{}) error {
+	return q.Put(val, -1)
+}
+
+// * If timeout less than 0, If Queue is full, return (nil, FullQueueError).
+// * If timeout equals to 0, block until put a value into Queue.
+// * If timeout greater than 0, wait timeout seconds until put a value into Queue,
+// if timeout passed, return (nil, FullQueueError).
+func (q *Queue) Put(val interface{}, timeout float64) error {
+	q.mutex.Lock()
+	isfull := q.isfull()
+	if timeout < 0.0 && isfull {
+		return &FullQueueError{}
+	}
+
+	if !isfull {
+		defer q.mutex.Unlock()
+		if !q.notifyGetters(nil, val) {
+			q.put(val)
 		}
-		queue.taskDoneCond.Broadcast()
+		return nil
 	}
-	queue.unfinishedTask = unfinished
-}
 
-func (queue *Queue) WaitAllComplete() {
-	queue.taskDoneCond.L.Lock()
-	defer queue.taskDoneCond.L.Unlock()
-	for queue.unfinishedTask != 0 {
-		queue.taskDoneCond.Wait()
+	e := q.newPutter()
+	q.mutex.Unlock()
+	w := e.Value.(waiter)
+	if timeout == 0.0 {
+		<-w
+	} else {
+		select {
+		case <-w:
+		case <-time.After(time.Duration(timeout) * time.Second):
+			return &FullQueueError{}
+		}
 	}
+
+	q.mutex.Lock()
+	if !q.notifyGetters(e, val) {
+		q.put(e)
+	}
+	q.mutex.Unlock()
+	return nil
 }
 
-func (queue *Queue) waitSignal(cond *sync.Cond, c chan<- bool) {
-	cond.Wait()
-	c <- true
+func (q *Queue) size() int {
+	return q.items.Len()
 }
 
-func (queue *Queue) cancelWait(cond *sync.Cond, c <-chan bool) {
-	cond.Signal()
-	<-c
+// Return size of Queue.
+func (q *Queue) Size() int {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	return q.size()
 }
 
-func (queue *Queue) qsize() int {
-	return queue.list.Len()
+func (q *Queue) isempty() bool {
+	return (q.size() == 0)
+}
+
+// Return true if Queue is empty.
+func (q *Queue) IsEmpty() bool {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	return q.isempty()
+}
+
+func (q *Queue) isfull() bool {
+	return (q.maxSize > 0 && q.maxSize <= q.size())
+}
+
+// Return true if Queue is full.
+func (q *Queue) IsFull() bool {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	return q.isfull()
 }

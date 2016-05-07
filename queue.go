@@ -108,12 +108,12 @@ func (q *Queue) GetNoWait() (interface{}, error) {
 	return q.Get(-1)
 }
 
-// * If timeout less than 0, If Queue is empty, return (nil, EmptyQueueError).
+// * If timeout less than 0, If Queue is empty, return (nil, ErrEmptyQueue).
 //
 // * If timeout equals to 0, block until get a value from Queue.
 //
 // * If timeout greater tahn 0, wait timeout seconds until get a value from Queue,
-// if timeout passed, return (nil, EmptyQueueError).
+// if timeout passed, return (nil, ErrEmptyQueue).
 func (q *Queue) Get(timeout float64) (interface{}, error) {
 	q.mutex.Lock()
 	q.clearPending()
@@ -154,12 +154,12 @@ func (q *Queue) PutNoWait(val interface{}) error {
 	return q.Put(val, -1)
 }
 
-// * If timeout less than 0, If Queue is full, return (nil, FullQueueError).
+// * If timeout less than 0, If Queue is full, return (nil, ErrFullQueue).
 //
 // * If timeout equals to 0, block until put a value into Queue.
 //
 // * If timeout greater than 0, wait timeout seconds until put a value into Queue,
-// if timeout passed, return (nil, FullQueueError).
+// if timeout passed, return (nil, ErrFullQueue).
 func (q *Queue) Put(val interface{}, timeout float64) error {
 	q.mutex.Lock()
 	q.clearPending()

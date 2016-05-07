@@ -6,23 +6,17 @@ package goqueue
 
 import (
 	"container/list"
+	"errors"
 	"sync"
 	"time"
 )
 
-type EmptyQueueError struct{}
-
-type FullQueueError struct{}
-
-// Queue is Empty.
-func (err *EmptyQueueError) Error() string {
-	return "Queue is Empty"
-}
-
-// Queue is Full.
-func (err *FullQueueError) Error() string {
-	return "Queue is Full"
-}
+var (
+	// Queue is Empty.
+	ErrEmptyQueue = errors.New("queue is empty")
+	// Queue is Full.
+	ErrFullQueue = errors.New("queue is full")
+)
 
 type waiter chan interface{}
 
@@ -35,8 +29,8 @@ type Queue struct {
 	maxSize int
 	mutex   sync.Mutex
 	items   *list.List // store items
-	putters *list.List // store blocked Put operator
-	getters *list.List // store blocked Get operator
+	putters *list.List // store blocked Put operators
+	getters *list.List // store blocked Get operators
 }
 
 // New create a new Queue, The maxSize variable sets the max Queue size.
@@ -115,7 +109,9 @@ func (q *Queue) GetNoWait() (interface{}, error) {
 }
 
 // * If timeout less than 0, If Queue is empty, return (nil, EmptyQueueError).
+//
 // * If timeout equals to 0, block until get a value from Queue.
+//
 // * If timeout greater tahn 0, wait timeout seconds until get a value from Queue,
 // if timeout passed, return (nil, EmptyQueueError).
 func (q *Queue) Get(timeout float64) (interface{}, error) {
@@ -123,7 +119,7 @@ func (q *Queue) Get(timeout float64) (interface{}, error) {
 	q.clearPending()
 	isempty := q.isempty()
 	if timeout < 0.0 && isempty {
-		return nil, &EmptyQueueError{}
+		return nil, ErrEmptyQueue
 	}
 
 	if !isempty {
@@ -144,7 +140,7 @@ func (q *Queue) Get(timeout float64) (interface{}, error) {
 		select {
 		case v = <-w:
 		case <-time.After(time.Duration(timeout) * time.Second):
-			return nil, &EmptyQueueError{}
+			return nil, ErrEmptyQueue
 		}
 	}
 	q.mutex.Lock()
@@ -159,7 +155,9 @@ func (q *Queue) PutNoWait(val interface{}) error {
 }
 
 // * If timeout less than 0, If Queue is full, return (nil, FullQueueError).
+//
 // * If timeout equals to 0, block until put a value into Queue.
+//
 // * If timeout greater than 0, wait timeout seconds until put a value into Queue,
 // if timeout passed, return (nil, FullQueueError).
 func (q *Queue) Put(val interface{}, timeout float64) error {
@@ -167,7 +165,7 @@ func (q *Queue) Put(val interface{}, timeout float64) error {
 	q.clearPending()
 	isfull := q.isfull()
 	if timeout < 0.0 && isfull {
-		return &FullQueueError{}
+		return ErrFullQueue
 	}
 
 	if !isfull {
@@ -187,7 +185,7 @@ func (q *Queue) Put(val interface{}, timeout float64) error {
 		select {
 		case <-w:
 		case <-time.After(time.Duration(timeout) * time.Second):
-			return &FullQueueError{}
+			return ErrFullQueue
 		}
 	}
 

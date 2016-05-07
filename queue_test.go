@@ -2,7 +2,6 @@ package goqueue
 
 import (
 	"fmt"
-	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -69,8 +68,8 @@ func TestBlockGetWithTimeout(t *testing.T) {
 		} else {
 			if err == nil {
 				t.Fatalf("Wanted EmptyQueueError, but got nil\n")
-			} else if reflect.TypeOf(err) != reflect.TypeOf(&EmptyQueueError{}) {
-				t.Fatalf("Expect %v, got %v\n", EmptyQueueError{}, err)
+			} else if err != ErrEmptyQueue {
+				t.Fatalf("Expect %v, got %v\n", ErrEmptyQueue, err)
 			}
 		}
 	}
@@ -140,8 +139,8 @@ func TestBlockPutWithTimeout(t *testing.T) {
 		} else {
 			if err == nil {
 				t.Fatalf("Wanted FullQueueError, but got nil\n")
-			} else if reflect.TypeOf(err) != reflect.TypeOf(&FullQueueError{}) {
-				t.Fatalf("Expect %v, got %v\n", FullQueueError{}, err)
+			} else if err != ErrFullQueue {
+				t.Fatalf("Expect %v, got %v\n", ErrFullQueue, err)
 			}
 		}
 	}

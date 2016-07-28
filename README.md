@@ -1,11 +1,11 @@
-## A GoRoutine safe queue for Golang [![Build Status](https://travis-ci.org/Damnever/goqueue.svg?branch=master)](https://travis-ci.org/Damnever/goqueue) [![GoDoc](https://godoc.org/github.com/Damnever/goqueue?status.svg)](https://godoc.org/github.com/Damnever/goqueue)
+## A GoRoutine safe queue for Golang [![Build Status](https://travis-ci.org/damnever/goqueue.svg?branch=master)](https://travis-ci.org/damnever/goqueue) [![GoDoc](https://godoc.org/github.com/damnever/goqueue?status.svg)](https://godoc.org/github.com/damnever/goqueue)
 
 It is similar to the Queue of Python.
 
 ### Installation
 
 ```
-go get github.com/Damnever/goqueue
+go get github.com/damnever/goqueue
 ```
 
 ### Example

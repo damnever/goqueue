@@ -22,11 +22,23 @@ func TestUnBlockGetPut(t *testing.T) {
 	fmt.Println("  ...PASSED")
 
 	fmt.Println("Test unblock get/put, error should show up...")
-	emptyQ := New(1)
-	_, err1 := emptyQ.GetNoWait()
-	if err1 == nil {
+	queue = New(1)
+	_, err = queue.GetNoWait()
+	if err == nil {
 		t.Fatalf("No error show up\n")
 	}
+	queue.PutNoWait(value)
+	err = queue.PutNoWait(value + 1)
+	if err == nil {
+		t.Fatalf("No error show up\n")
+	}
+	val, err = queue.GetNoWait()
+	if err != nil {
+		t.Fatalf("Unexpect error: %v\n", err)
+	} else if val.(int) != value {
+		t.Fatalf("Expect %v, got %v\n", value, val.(int))
+	}
+
 	fmt.Println("  ...PASSED")
 }
 

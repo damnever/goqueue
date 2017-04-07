@@ -254,3 +254,32 @@ func TestConcurrentPutGet(t *testing.T) {
 	}
 	fmt.Println("  ...PASSED")
 }
+
+func TestConcurrentNoWaitPutGet(t *testing.T) {
+	fmt.Println("Test concurrent nowait Put/Get...if deadlock block forever or panic!")
+	wg := &sync.WaitGroup{}
+	queue := New(0)
+	putDone := make(chan bool, 1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-putDone:
+				return
+			default:
+				_, _ = queue.GetNoWait()
+			}
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		time.Sleep(3 * time.Second)
+		for i := 0; i < 100; i++ {
+			_ = queue.PutNoWait(1)
+		}
+		putDone <- true
+	}()
+	wg.Add(2)
+	wg.Wait()
+	fmt.Println("...PASSED")
+}

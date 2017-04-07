@@ -119,6 +119,7 @@ func (q *Queue) Get(timeout float64) (interface{}, error) {
 	q.clearPending()
 	isempty := q.isempty()
 	if timeout < 0.0 && isempty {
+		q.mutex.Unlock()
 		return nil, ErrEmptyQueue
 	}
 
@@ -165,6 +166,7 @@ func (q *Queue) Put(val interface{}, timeout float64) error {
 	q.clearPending()
 	isfull := q.isfull()
 	if timeout < 0.0 && isfull {
+		q.mutex.Unlock()
 		return ErrFullQueue
 	}
 

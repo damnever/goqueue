@@ -112,20 +112,21 @@ func (q *Queue) GetNoWait() (interface{}, error) {
 //
 // * If timeout equals to 0, block until get a value from Queue.
 //
-// * If timeout greater tahn 0, wait timeout seconds until get a value from Queue,
+// * If timeout greater than 0, wait timeout seconds until get a value from Queue,
 // if timeout passed, return (nil, ErrEmptyQueue).
 func (q *Queue) Get(timeout float64) (interface{}, error) {
 	q.mutex.Lock()
 	q.clearPending()
 	isempty := q.isempty()
 	if timeout < 0.0 && isempty {
+		q.mutex.Unlock()
 		return nil, ErrEmptyQueue
 	}
 
 	if !isempty {
-		defer q.mutex.Unlock()
 		v := q.get()
 		q.notifyPutter(nil)
+		q.mutex.Unlock()
 		return v, nil
 	}
 
@@ -165,14 +166,15 @@ func (q *Queue) Put(val interface{}, timeout float64) error {
 	q.clearPending()
 	isfull := q.isfull()
 	if timeout < 0.0 && isfull {
+		q.mutex.Unlock()
 		return ErrFullQueue
 	}
 
 	if !isfull {
-		defer q.mutex.Unlock()
 		if !q.notifyGetter(nil, val) {
 			q.put(val)
 		}
+		q.mutex.Unlock()
 		return nil
 	}
 

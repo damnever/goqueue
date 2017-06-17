@@ -1,6 +1,9 @@
 language: go
 
 go:
-    - tip
+    - 1.8
+    - 1.7
 
-script: . ./test.sh
+script:
+    - go get -u github.com/golang/lint/golint
+    - make test

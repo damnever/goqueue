@@ -12,9 +12,9 @@ import (
 )
 
 var (
-	// Queue is Empty.
+	// ErrEmptyQueue is returned when queue is empty.
 	ErrEmptyQueue = errors.New("queue is empty")
-	// Queue is Full.
+	// ErrFullQueue is returned when queue is full.
 	ErrFullQueue = errors.New("queue is full")
 )
 
@@ -25,6 +25,7 @@ func newWaiter() waiter {
 	return w
 }
 
+// Queue is data structure, which has much similar behavior with channel.
 type Queue struct {
 	maxSize int
 	mutex   sync.Mutex
@@ -103,16 +104,15 @@ func (q *Queue) put(val interface{}) {
 	q.items.PushBack(val)
 }
 
-// Same as Get(-1).
+// GetNoWait returns immediately, same as Get(-1).
 func (q *Queue) GetNoWait() (interface{}, error) {
 	return q.Get(-1)
 }
 
-// * If timeout less than 0, If Queue is empty, return (nil, ErrEmptyQueue).
-//
-// * If timeout equals to 0, block until get a value from Queue.
-//
-// * If timeout greater than 0, wait timeout seconds until get a value from Queue,
+// Get gets an element from Queue.
+// If timeout less than 0, If Queue is empty, return (nil, ErrEmptyQueue);
+// If timeout equals to 0, block until get a value from Queue;
+// If timeout greater than 0, wait timeout seconds until get a value from Queue,
 // if timeout passed, return (nil, ErrEmptyQueue).
 func (q *Queue) Get(timeout float64) (interface{}, error) {
 	q.mutex.Lock()
@@ -150,16 +150,15 @@ func (q *Queue) Get(timeout float64) (interface{}, error) {
 	return v, nil
 }
 
-// Same as Put(-1).
+// PutNoWait puts an element into Queue immediately, same as Put(-1).
 func (q *Queue) PutNoWait(val interface{}) error {
 	return q.Put(val, -1)
 }
 
-// * If timeout less than 0, If Queue is full, return (nil, ErrFullQueue).
-//
-// * If timeout equals to 0, block until put a value into Queue.
-//
-// * If timeout greater than 0, wait timeout seconds until put a value into Queue,
+// Put puts an element into Queue.
+// If timeout less than 0, If Queue is full, return (nil, ErrFullQueue);
+// If timeout equals to 0, block until put a value into Queue;
+// If timeout greater than 0, wait timeout seconds until put a value into Queue,
 // if timeout passed, return (nil, ErrFullQueue).
 func (q *Queue) Put(val interface{}, timeout float64) error {
 	q.mutex.Lock()
@@ -203,7 +202,7 @@ func (q *Queue) size() int {
 	return q.items.Len()
 }
 
-// Return size of Queue.
+// Size returns the size of Queue.
 func (q *Queue) Size() int {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -214,7 +213,7 @@ func (q *Queue) isempty() bool {
 	return (q.size() == 0)
 }
 
-// Return true if Queue is empty.
+// IsEmpty returns true if Queue is empty.
 func (q *Queue) IsEmpty() bool {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -225,7 +224,7 @@ func (q *Queue) isfull() bool {
 	return (q.maxSize > 0 && q.maxSize <= q.size())
 }
 
-// Return true if Queue is full.
+// IsFull returns true if Queue is full, always returns false if maxSize is 0.
 func (q *Queue) IsFull() bool {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

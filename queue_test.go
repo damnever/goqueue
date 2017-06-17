@@ -19,7 +19,6 @@ func TestUnBlockGetPut(t *testing.T) {
 	} else if val.(int) != value {
 		t.Fatalf("Expect %v, got %v\n", value, val.(int))
 	}
-	fmt.Println("  ...PASSED")
 
 	fmt.Println("Test unblock get/put, error should show up...")
 	queue = New(1)
@@ -38,8 +37,6 @@ func TestUnBlockGetPut(t *testing.T) {
 	} else if val.(int) != value {
 		t.Fatalf("Expect %v, got %v\n", value, val.(int))
 	}
-
-	fmt.Println("  ...PASSED")
 }
 
 func TestFIFO(t *testing.T) {
@@ -61,7 +58,6 @@ func TestFIFO(t *testing.T) {
 	if queue.Size() != 0 {
 		t.Fatalf("Something wrong, Queue has %d more items.\n", queue.Size())
 	}
-	fmt.Println("  ...PASSED")
 }
 
 func TestBlockGetWithTimeout(t *testing.T) {
@@ -96,7 +92,6 @@ func TestBlockGetWithTimeout(t *testing.T) {
 	go put(time.Duration(3), 9999)
 	go get(0, 9999, true)
 	wg.Wait()
-	fmt.Println("  ...PASSED")
 
 	fmt.Println("Test block get without timeout, wait forever...")
 	done := make(chan bool)
@@ -110,7 +105,6 @@ func TestBlockGetWithTimeout(t *testing.T) {
 		t.Fatalf("Queue.Get returned even though no element in Queue\n")
 	case <-time.After(time.Duration(2) * time.Second):
 	}
-	fmt.Println("  ...PASSED")
 	queue2.PutNoWait(0)
 	<-done
 	close(done)
@@ -120,14 +114,12 @@ func TestBlockGetWithTimeout(t *testing.T) {
 	go put(time.Duration(2), 8888)
 	go get(3, 8888, true)
 	wg.Wait()
-	fmt.Println("  ...PASSED")
 
 	fmt.Println("Test block get with timeout, if no element is available within timeout, return EmptyQueueError...")
 	wg.Add(1)
 	go put(time.Duration(4), 7777)
 	go get(2, 7777, false)
 	wg.Wait()
-	fmt.Println("  ...PASSED")
 }
 
 func TestBlockPutWithTimeout(t *testing.T) {
@@ -162,7 +154,6 @@ func TestBlockPutWithTimeout(t *testing.T) {
 	go put(0, 9999, true)
 	wg.Add(2)
 	wg.Wait()
-	fmt.Println("  ...PASSED")
 
 	fmt.Println("Test block put without timeout, wait forever...")
 	queue2 := New(1)
@@ -177,7 +168,6 @@ func TestBlockPutWithTimeout(t *testing.T) {
 		t.Fatalf("Queue.Put returned even though no free slot in Queue\n")
 	case <-time.After(time.Duration(2) * time.Second):
 	}
-	fmt.Println("  ...PASSED")
 	queue2.GetNoWait()
 	<-done
 
@@ -186,14 +176,12 @@ func TestBlockPutWithTimeout(t *testing.T) {
 	go put(3, 8888, true)
 	wg.Add(2)
 	wg.Wait()
-	fmt.Println("  ...PASSED")
 
 	fmt.Println("Test block put with timeout, if no free slot is available within timeout, return FullQueueError...")
 	go get(time.Duration(4))
 	go put(2, 7777, false)
 	wg.Add(2)
 	wg.Wait()
-	fmt.Println("  ...PASSED")
 }
 
 func TestConcurrentPutGet(t *testing.T) {
@@ -264,5 +252,4 @@ func TestConcurrentPutGet(t *testing.T) {
 	if queue.Size() != 0 {
 		t.Fatalf("Queue is not empty, still has %d items.\n", queue.Size())
 	}
-	fmt.Println("  ...PASSED")
 }

@@ -64,7 +64,7 @@ func TestBlockGetWithTimeout(t *testing.T) {
 	wg := &sync.WaitGroup{}
 	queue := New(1)
 
-	get := func(timeout float64, value int, noErr bool) {
+	get := func(timeout time.Duration, value int, noErr bool) {
 		defer wg.Done()
 		val, err := queue.Get(timeout)
 		if noErr {
@@ -83,13 +83,13 @@ func TestBlockGetWithTimeout(t *testing.T) {
 	}
 
 	put := func(d time.Duration, value int) {
-		time.Sleep(time.Second * d)
+		time.Sleep(d)
 		queue.PutNoWait(value)
 	}
 
 	fmt.Println("Test block get without timeout, wait until an element available...")
 	wg.Add(1)
-	go put(time.Duration(3), 9999)
+	go put(3*time.Second, 9999)
 	go get(0, 9999, true)
 	wg.Wait()
 
@@ -103,7 +103,7 @@ func TestBlockGetWithTimeout(t *testing.T) {
 	select {
 	case <-done:
 		t.Fatalf("Queue.Get returned even though no element in Queue\n")
-	case <-time.After(time.Duration(2) * time.Second):
+	case <-time.After(2 * time.Second):
 	}
 	queue2.PutNoWait(0)
 	<-done
@@ -111,14 +111,14 @@ func TestBlockGetWithTimeout(t *testing.T) {
 
 	fmt.Println("Test block get with timeout, if an element available before timeout, return immediately...")
 	wg.Add(1)
-	go put(time.Duration(2), 8888)
-	go get(3, 8888, true)
+	go put(2*time.Second, 8888)
+	go get(3*time.Second, 8888, true)
 	wg.Wait()
 
 	fmt.Println("Test block get with timeout, if no element is available within timeout, return EmptyQueueError...")
 	wg.Add(1)
-	go put(time.Duration(4), 7777)
-	go get(2, 7777, false)
+	go put(4*time.Second, 7777)
+	go get(2*time.Second, 7777, false)
 	wg.Wait()
 }
 
@@ -129,11 +129,11 @@ func TestBlockPutWithTimeout(t *testing.T) {
 
 	get := func(d time.Duration) {
 		defer wg.Done()
-		time.Sleep(time.Second * d)
+		time.Sleep(d)
 		queue.GetNoWait()
 	}
 
-	put := func(timeout float64, value int, noErr bool) {
+	put := func(timeout time.Duration, value int, noErr bool) {
 		defer wg.Done()
 		err := queue.Put(value, timeout)
 		if noErr {
@@ -150,7 +150,7 @@ func TestBlockPutWithTimeout(t *testing.T) {
 	}
 
 	fmt.Println("Test block put without timeout, wait until a free slot available...")
-	go get(time.Duration(2))
+	go get(2 * time.Second)
 	go put(0, 9999, true)
 	wg.Add(2)
 	wg.Wait()
@@ -160,26 +160,26 @@ func TestBlockPutWithTimeout(t *testing.T) {
 	queue2.PutNoWait(1111)
 	done := make(chan bool)
 	go func() {
-		queue2.Put(0, 2222)
+		queue2.Put(0, 3*time.Second)
 		done <- true
 	}()
 	select {
 	case <-done:
 		t.Fatalf("Queue.Put returned even though no free slot in Queue\n")
-	case <-time.After(time.Duration(2) * time.Second):
+	case <-time.After(2 * time.Second):
 	}
 	queue2.GetNoWait()
 	<-done
 
 	fmt.Println("Test block put with timeout, if a free slot is available before timeout, return immediately...")
-	go get(time.Duration(2))
-	go put(3, 8888, true)
+	go get(2 * time.Second)
+	go put(3*time.Second, 8888, true)
 	wg.Add(2)
 	wg.Wait()
 
 	fmt.Println("Test block put with timeout, if no free slot is available within timeout, return FullQueueError...")
-	go get(time.Duration(4))
-	go put(2, 7777, false)
+	go get(4 * time.Second)
+	go put(2*time.Second, 7777, false)
 	wg.Add(2)
 	wg.Wait()
 }

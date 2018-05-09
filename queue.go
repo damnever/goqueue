@@ -114,11 +114,11 @@ func (q *Queue) GetNoWait() (interface{}, error) {
 // If timeout equals to 0, block until get a value from Queue;
 // If timeout greater than 0, wait timeout seconds until get a value from Queue,
 // if timeout passed, return (nil, ErrEmptyQueue).
-func (q *Queue) Get(timeout float64) (interface{}, error) {
+func (q *Queue) Get(timeout time.Duration) (interface{}, error) {
 	q.mutex.Lock()
 	q.clearPending()
 	isempty := q.isempty()
-	if timeout < 0.0 && isempty {
+	if timeout < 0 && isempty {
 		q.mutex.Unlock()
 		return nil, ErrEmptyQueue
 	}
@@ -135,12 +135,12 @@ func (q *Queue) Get(timeout float64) (interface{}, error) {
 	w := e.Value.(waiter)
 
 	var v interface{}
-	if timeout == 0.0 {
+	if timeout == 0 {
 		v = <-w
 	} else {
 		select {
 		case v = <-w:
-		case <-time.After(time.Duration(timeout) * time.Second):
+		case <-time.After(timeout):
 			return nil, ErrEmptyQueue
 		}
 	}
@@ -160,11 +160,11 @@ func (q *Queue) PutNoWait(val interface{}) error {
 // If timeout equals to 0, block until put a value into Queue;
 // If timeout greater than 0, wait timeout seconds until put a value into Queue,
 // if timeout passed, return (nil, ErrFullQueue).
-func (q *Queue) Put(val interface{}, timeout float64) error {
+func (q *Queue) Put(val interface{}, timeout time.Duration) error {
 	q.mutex.Lock()
 	q.clearPending()
 	isfull := q.isfull()
-	if timeout < 0.0 && isfull {
+	if timeout < 0 && isfull {
 		q.mutex.Unlock()
 		return ErrFullQueue
 	}
@@ -180,12 +180,12 @@ func (q *Queue) Put(val interface{}, timeout float64) error {
 	e := q.newPutter()
 	q.mutex.Unlock()
 	w := e.Value.(waiter)
-	if timeout == 0.0 {
+	if timeout == 0 {
 		<-w
 	} else {
 		select {
 		case <-w:
-		case <-time.After(time.Duration(timeout) * time.Second):
+		case <-time.After(timeout):
 			return ErrFullQueue
 		}
 	}

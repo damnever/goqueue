@@ -5,5 +5,5 @@ go:
     - 1.7
 
 script:
-    - go get -u github.com/golang/lint/golint
+    - go get -u golang.org/x/lint/golint
     - make test
